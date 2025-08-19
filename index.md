@@ -18,6 +18,9 @@ permalink: /
     .hero {
       background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
       url('{{ "/DSC04463.JPG" | relative_url }}') center/cover no-repeat;
+      color: #fff;
+      text-align: center;
+      padding: 100px 20px;
     }
     .navbar-nav .nav-link:hover {
       color: #007BFF;
