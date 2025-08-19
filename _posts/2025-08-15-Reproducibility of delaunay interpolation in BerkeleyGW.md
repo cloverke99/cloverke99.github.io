@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Reproduciblity of delaunay interpolation in BerkeleyGW"
+title: "Reproducibility of delaunay interpolation in BerkeleyGW"
 date: 2025-08-18
 tags: [BGW]
 ---
