@@ -1,0 +1,14 @@
+title: "Sijia"
+description: "Research • Notes • Code"
+theme: minima            # Built-in theme supported by GitHub Pages
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+# Markdown + Math (optional)
+markdown: kramdown
+kramdown:
+  math_engine: katex
+  input: GFM
+# Site URLs (update for your repo)
+url: https://cloverke99.github.io
+baseurl: ""              # leave "" for user site; for project site use "/repo-name"
