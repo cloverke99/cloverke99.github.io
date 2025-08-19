@@ -10,5 +10,5 @@ kramdown:
   math_engine: katex
   input: GFM
 # Site URLs (update for your repo)
-url: https://cloverke99.github.io
-baseurl: ""              # leave "" for user site; for project site use "/repo-name"
+url: https://cloverke99.github.io/
+baseurl: {{ site.baseurl }}             # leave "" for user site; for project site use "/repo-name"
