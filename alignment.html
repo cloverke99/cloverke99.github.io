@@ -200,7 +200,7 @@ permalink: /alignment/
       getAuth, signInAnonymously, onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
     import {
-      getFirestore, doc, getDoc, setDoc, onSnapshot,
+      getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
       collection, addDoc, deleteDoc, query, orderBy, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
@@ -218,7 +218,10 @@ permalink: /alignment/
   };
     // ────────────────────────────────────────────────────────────────────────
 
-    // Validated categorical palette (colorblind-safe, fixed order).
+    // Validated categorical palette (colorblind-safe, fixed order) plus an
+    // extended set chosen to fill the hue gaps between those 8 — not run
+    // through the palette validator (no local Node), so treat the extended
+    // half as "reasonably distinct" rather than formally CVD-checked.
     const PALETTE = [
       { name: "blue",    hex: "#2a78d6" },
       { name: "aqua",    hex: "#1baf7a" },
@@ -227,7 +230,15 @@ permalink: /alignment/
       { name: "violet",  hex: "#4a3aa7" },
       { name: "red",     hex: "#e34948" },
       { name: "magenta", hex: "#e87ba4" },
-      { name: "orange",  hex: "#eb6834" }
+      { name: "orange",  hex: "#eb6834" },
+      { name: "lime",    hex: "#7cb305" },
+      { name: "teal",    hex: "#0e9594" },
+      { name: "indigo",  hex: "#5b4fcf" },
+      { name: "purple",  hex: "#8e3ec7" },
+      { name: "rose",    hex: "#c2255c" },
+      { name: "brown",   hex: "#8a5a2b" },
+      { name: "slate",   hex: "#6b7280" },
+      { name: "navy",    hex: "#1e3a8a" }
     ];
 
     const els = {
@@ -264,6 +275,13 @@ permalink: /alignment/
     const invX = (px) => Math.min(1, Math.max(0, (px - PAD) / (SIZE - 2 * PAD)));
     const invY = (py) => Math.min(1, Math.max(0, (py - PAD) / (SIZE - 2 * PAD)));
 
+    // Stored point data keeps its original meaning forever: y=0 is Good, y=1
+    // is Evil. Only the *screen* orientation is flipped (Evil on top, Good on
+    // bottom), so existing Firestore documents never need to change — only
+    // where we draw them.
+    const dataYToScreen = (y) => scaleY(1 - y);
+    const screenToDataY = (py) => 1 - invY(py);
+
     function alignmentLabel(x, y) {
       const lc = x < 1/3 ? "Lawful" : x > 2/3 ? "Chaotic" : "Neutral";
       const ge = y < 1/3 ? "Good" : y > 2/3 ? "Evil" : "Neutral";
@@ -294,12 +312,12 @@ permalink: /alignment/
       // Frame
       svg.appendChild(svgEl("rect", { x: PAD, y: PAD, width: SIZE - 2*PAD, height: SIZE - 2*PAD, fill: "none", stroke: "#c3c2b7", "stroke-width": 1 }));
 
-      // Corner labels
+      // Corner labels (Evil on top, Good on bottom)
       const corners = [
-        [0.02, 0.06, "Lawful Good", "start"],
-        [0.98, 0.06, "Chaotic Good", "end"],
-        [0.02, 0.955, "Lawful Evil", "start"],
-        [0.98, 0.955, "Chaotic Evil", "end"],
+        [0.02, 0.06, "Lawful Evil", "start"],
+        [0.98, 0.06, "Chaotic Evil", "end"],
+        [0.02, 0.955, "Lawful Good", "start"],
+        [0.98, 0.955, "Chaotic Good", "end"],
       ];
       for (const [fx, fy, text, anchor] of corners) {
         const t = svgEl("text", { class: "corner-label", x: scaleX(fx), y: scaleY(fy), "text-anchor": anchor });
@@ -313,14 +331,14 @@ permalink: /alignment/
       svg.appendChild(xLabel);
 
       const yLabel = svgEl("text", { class: "axis-label", x: 16, y: SIZE/2, "text-anchor": "middle", transform: `rotate(-90 16 ${SIZE/2})` });
-      yLabel.textContent = "Good ←   Good vs Evil   → Evil";
+      yLabel.textContent = "Evil ←   Good vs Evil   → Good";
       svg.appendChild(yLabel);
 
       const topSub = svgEl("text", { class: "axis-sub", x: SIZE/2, y: PAD - 18, "text-anchor": "middle" });
-      topSub.textContent = "Good";
+      topSub.textContent = "Evil";
       svg.appendChild(topSub);
       const botSub = svgEl("text", { class: "axis-sub", x: SIZE/2, y: SIZE - PAD + 30, "text-anchor": "middle" });
-      botSub.textContent = "Evil";
+      botSub.textContent = "Good";
       svg.appendChild(botSub);
 
       const pointsGroup = svgEl("g", { id: "points-group" });
@@ -432,13 +450,25 @@ permalink: /alignment/
       }, (err) => console.error("points snapshot error", err));
     }
 
+    // While a point is being dragged, override its render position so a
+    // concurrent snapshot (someone else's edit) can't yank it back mid-drag.
+    let dragging = null; // { id, x, y } in data space
+
     function renderPoints(docs) {
       pointsGroup.innerHTML = "";
       for (const p of docs) {
-        const cx = scaleX(p.x), cy = scaleY(p.y);
-        const g = svgEl("g", { class: "point-group" });
+        const isMine = currentUid && p.ownerUid === currentUid;
+        const overrideXY = dragging && dragging.id === p.id ? dragging : null;
+        const dataX = overrideXY ? overrideXY.x : p.x;
+        const dataY = overrideXY ? overrideXY.y : p.y;
+        const cx = scaleX(dataX), cy = dataYToScreen(dataY);
 
-        const dot = svgEl("circle", { class: "point-dot", cx, cy, r: 6, fill: p.color });
+        const g = svgEl("g", { class: "point-group", "data-id": p.id });
+
+        const dot = svgEl("circle", {
+          class: "point-dot", cx, cy, r: 6, fill: p.color,
+          style: isMine ? "cursor:grab" : ""
+        });
         g.appendChild(dot);
 
         if (p.label) {
@@ -458,7 +488,15 @@ permalink: /alignment/
         g.addEventListener("mousemove", (evt) => showTooltip(evt, els.tooltip.innerHTML));
         g.addEventListener("mouseleave", hideTooltip);
 
-        if (currentUid && p.ownerUid === currentUid) {
+        if (isMine) {
+          dot.addEventListener("pointerdown", (evt) => {
+            evt.stopPropagation();
+            hideTooltip();
+            dragging = { id: p.id, x: p.x, y: p.y };
+            els.svg.setPointerCapture(evt.pointerId);
+            dot.style.cursor = "grabbing";
+          });
+
           const del = svgEl("g", { class: "point-delete" });
           const delCircle = svgEl("circle", { cx: cx + 10, cy: cy - 10, r: 7, fill: "#fff", stroke: "#c3c2b7" });
           const delText = svgEl("text", { x: cx + 10, y: cy - 6, "text-anchor": "middle", "font-size": "10", fill: "#0b0b0b" });
@@ -479,6 +517,41 @@ permalink: /alignment/
       }
     }
 
+    // ── Drag-to-move (owner only) ───────────────────────────────────────
+    els.svg.addEventListener("pointermove", (evt) => {
+      if (!dragging) return;
+      const loc = svgPointFromClient(evt.clientX, evt.clientY);
+      dragging.x = invX(loc.x);
+      dragging.y = screenToDataY(loc.y);
+
+      const g = pointsGroup.querySelector(`[data-id="${dragging.id}"]`);
+      if (g) {
+        const cx = scaleX(dragging.x), cy = dataYToScreen(dragging.y);
+        const dot = g.querySelector(".point-dot");
+        dot.setAttribute("cx", cx);
+        dot.setAttribute("cy", cy);
+        const label = g.querySelector(".point-label");
+        if (label) { label.setAttribute("x", cx + 9); label.setAttribute("y", cy + 4); }
+        const del = g.querySelector(".point-delete");
+        if (del) {
+          const [delCircle, delText] = del.children;
+          delCircle.setAttribute("cx", cx + 10); delCircle.setAttribute("cy", cy - 10);
+          delText.setAttribute("x", cx + 10); delText.setAttribute("y", cy - 6);
+        }
+      }
+    });
+
+    let justDragged = false;
+    els.svg.addEventListener("pointerup", async (evt) => {
+      if (!dragging) return;
+      const { id, x, y } = dragging;
+      dragging = null;
+      justDragged = true;
+      try { els.svg.releasePointerCapture(evt.pointerId); } catch (e) {}
+      try { await updateDoc(doc(db, "alignmentPoints", id), { x, y }); }
+      catch (e) { console.error(e); alert("Could not move point."); }
+    });
+
     function renderLegend(docs) {
       const seen = new Map();
       for (const p of docs) if (!seen.has(p.name + p.color)) seen.set(p.name + p.color, p);
@@ -492,19 +565,23 @@ permalink: /alignment/
     }
 
     // ── Add-point interaction ───────────────────────────────────────────
+    function svgPointFromClient(clientX, clientY) {
+      const pt = els.svg.createSVGPoint();
+      pt.x = clientX; pt.y = clientY;
+      return pt.matrixTransform(els.svg.getScreenCTM().inverse());
+    }
+
     let pendingXY = null;
 
     els.svg.addEventListener("click", (evt) => {
+      if (justDragged) { justDragged = false; return; } // that click was the end of a drag
       if (!currentProfile || !currentUid) return;
       if (evt.target.closest(".point-group")) return; // clicked an existing point
 
-      const pt = els.svg.createSVGPoint();
-      pt.x = evt.clientX; pt.y = evt.clientY;
-      const ctm = els.svg.getScreenCTM().inverse();
-      const loc = pt.matrixTransform(ctm);
+      const loc = svgPointFromClient(evt.clientX, evt.clientY);
       if (loc.x < PAD || loc.x > SIZE - PAD || loc.y < PAD || loc.y > SIZE - PAD) return;
 
-      pendingXY = { x: invX(loc.x), y: invY(loc.y) };
+      pendingXY = { x: invX(loc.x), y: screenToDataY(loc.y) };
 
       const rect = els.chartCard.getBoundingClientRect();
       els.addForm.style.left = Math.min(evt.clientX - rect.left, rect.width - 230) + "px";
