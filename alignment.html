@@ -1,0 +1,548 @@
+---
+layout: null
+permalink: /alignment/
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Alignment Chart - Sijia Ke</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --surface-1: #fcfcfb;
+      --page: #f9f9f7;
+      --text-primary: #0b0b0b;
+      --text-secondary: #52514e;
+      --muted: #898781;
+      --grid: #e1e0d9;
+      --axis: #c3c2b7;
+      --border: rgba(11,11,11,0.10);
+    }
+    body {
+      font-family: 'Segoe UI', Constantia, Geneva, Verdana, Times;
+      line-height: 1.7;
+      background: var(--page);
+    }
+    .navbar-nav .nav-link:hover { color: #007BFF; }
+
+    #chart-card {
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+    }
+    #chart-svg { width: 100%; height: auto; display: block; cursor: crosshair; }
+    #chart-svg.locked { cursor: not-allowed; }
+    .axis-label { fill: var(--text-secondary); font-size: 15px; font-weight: 600; }
+    .axis-sub { fill: var(--muted); font-size: 11px; }
+    .corner-label { fill: var(--muted); font-size: 12px; font-style: italic; }
+    .gridline { stroke: var(--grid); stroke-width: 1; }
+    .baseline { stroke: var(--axis); stroke-width: 2; }
+    .point-dot { stroke: rgba(11,11,11,0.15); stroke-width: 1; }
+    .point-label {
+      font-size: 11px;
+      fill: var(--text-primary);
+      pointer-events: none;
+      paint-order: stroke;
+      stroke: var(--surface-1);
+      stroke-width: 3px;
+    }
+    .point-delete {
+      cursor: pointer;
+      display: none;
+    }
+    .point-group:hover .point-delete { display: block; }
+    .point-group { cursor: pointer; }
+
+    #viewer-banner {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+    }
+    .swatch-dot {
+      width: 14px; height: 14px; border-radius: 50%;
+      display: inline-block; border: 1px solid var(--border);
+    }
+
+    #legend .legend-item { display: flex; align-items: center; gap: 0.4rem; }
+
+    /* Gate modal */
+    #gate-overlay {
+      position: fixed; inset: 0;
+      background: rgba(11,11,11,0.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    #gate-modal {
+      background: var(--surface-1);
+      border-radius: 12px;
+      padding: 1.75rem;
+      width: 90%;
+      max-width: 420px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    }
+    .swatch {
+      width: 34px; height: 34px; border-radius: 50%;
+      cursor: pointer; border: 2px solid transparent;
+      display: inline-block;
+    }
+    .swatch.selected {
+      border-color: var(--text-primary);
+      box-shadow: 0 0 0 2px var(--surface-1) inset;
+    }
+    #setup-banner {
+      background: #fff7e6; border: 1px solid #eda100;
+      border-radius: 8px; padding: 1rem; font-size: 0.9rem;
+    }
+
+    /* Add-point popover */
+    #add-point-form {
+      position: absolute;
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+      padding: 0.6rem;
+      display: none;
+      z-index: 20;
+    }
+
+    /* Tooltip */
+    #viz-tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: var(--text-primary);
+      color: #fff;
+      font-size: 12px;
+      padding: 6px 9px;
+      border-radius: 6px;
+      display: none;
+      z-index: 30;
+      max-width: 220px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="{{ '/' | relative_url }}">Sijia Ke 柯思佳</a>
+      <div>
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="{{ '/' | relative_url }}#about">About me</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ '/' | relative_url }}#research">Research</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ '/' | relative_url }}#publications">Publications</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ '/' | relative_url }}#contact">Contact</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ '/blog/' | relative_url }}">Blog</a></li>
+          <li class="nav-item"><a class="nav-link active" href="{{ '/alignment/' | relative_url }}">Alignment Chart</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4 mb-5">
+    <h1>Alignment Chart</h1>
+    <p class="text-secondary">
+      Click anywhere on the chart to drop a point for where you think something (or someone) falls,
+      and give it a short label. Every visitor's points are public and permanent — you can remove
+      your own points, but not anyone else's.
+    </p>
+
+    <div id="setup-banner" class="mb-3" style="display:none">
+      <strong>Setup needed:</strong> this page needs a Firebase project configured before it can save
+      points. See the <code>firebaseConfig</code> placeholder near the top of the
+      <code>&lt;script type="module"&gt;</code> block in <code>alignment.html</code>.
+    </div>
+
+    <div id="viewer-banner" class="mb-3"></div>
+
+    <div id="chart-card" class="mb-3" style="position:relative;">
+      <svg id="chart-svg" viewBox="0 0 640 640" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="add-point-form">
+        <input id="add-point-input" type="text" maxlength="80" placeholder="Label this point…" class="form-control form-control-sm mb-2" style="width:200px;">
+        <div class="d-flex gap-2">
+          <button id="add-point-confirm" class="btn btn-sm btn-primary">Add</button>
+          <button id="add-point-cancel" class="btn btn-sm btn-outline-secondary">Cancel</button>
+        </div>
+      </div>
+      <div id="viz-tooltip"></div>
+    </div>
+
+    <div>
+      <div class="small text-secondary mb-1">Who's plotted so far</div>
+      <div id="legend" class="d-flex flex-wrap gap-3"></div>
+    </div>
+  </div>
+
+  <!-- Gate: display name + color -->
+  <div id="gate-overlay" style="display:none">
+    <div id="gate-modal">
+      <h2 class="h4">Before you plot…</h2>
+      <p class="text-secondary small">
+        Pick a display name and a color. This color is yours permanently on this chart —
+        you won't be able to change it later, and it's how everyone tells your points apart.
+      </p>
+      <input id="gate-name" maxlength="40" placeholder="Display name" class="form-control mb-3">
+      <div id="gate-swatches" class="d-flex flex-wrap gap-2 mb-3"></div>
+      <div id="gate-error" class="text-danger small mb-2" style="display:none"></div>
+      <button id="gate-submit" class="btn btn-primary w-100">Start plotting</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+    import {
+      getAuth, signInAnonymously, onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+    import {
+      getFirestore, doc, getDoc, setDoc, onSnapshot,
+      collection, addDoc, deleteDoc, query, orderBy, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+    // ── REPLACE WITH YOUR FIREBASE PROJECT CONFIG ──────────────────────────
+    // Firebase Console → Project settings → General → Your apps → SDK setup.
+    // This config is not secret; access is controlled by Firestore security rules.
+  const firebaseConfig = {
+    apiKey: "AIzaSyDQdjG_3Kx7J_iIMuZVMKKxUDxTJwMXjGg",
+    authDomain: "method-alignment.firebaseapp.com",
+    projectId: "method-alignment",
+    storageBucket: "method-alignment.firebasestorage.app",
+    messagingSenderId: "183477234805",
+    appId: "1:183477234805:web:8288682c88e90af3031c3c",
+    measurementId: "G-RFYF2NEE0P"
+  };
+    // ────────────────────────────────────────────────────────────────────────
+
+    // Validated categorical palette (colorblind-safe, fixed order).
+    const PALETTE = [
+      { name: "blue",    hex: "#2a78d6" },
+      { name: "aqua",    hex: "#1baf7a" },
+      { name: "yellow",  hex: "#eda100" },
+      { name: "green",   hex: "#008300" },
+      { name: "violet",  hex: "#4a3aa7" },
+      { name: "red",     hex: "#e34948" },
+      { name: "magenta", hex: "#e87ba4" },
+      { name: "orange",  hex: "#eb6834" }
+    ];
+
+    const els = {
+      setupBanner: document.getElementById("setup-banner"),
+      viewerBanner: document.getElementById("viewer-banner"),
+      svg: document.getElementById("chart-svg"),
+      gateOverlay: document.getElementById("gate-overlay"),
+      gateName: document.getElementById("gate-name"),
+      gateSwatches: document.getElementById("gate-swatches"),
+      gateSubmit: document.getElementById("gate-submit"),
+      gateError: document.getElementById("gate-error"),
+      legend: document.getElementById("legend"),
+      addForm: document.getElementById("add-point-form"),
+      addInput: document.getElementById("add-point-input"),
+      addConfirm: document.getElementById("add-point-confirm"),
+      addCancel: document.getElementById("add-point-cancel"),
+      tooltip: document.getElementById("viz-tooltip"),
+      chartCard: document.getElementById("chart-card"),
+    };
+
+    if (firebaseConfig.apiKey === "REPLACE_ME") {
+      els.setupBanner.style.display = "block";
+      els.svg.classList.add("locked");
+      throw new Error("Firebase not configured yet — see firebaseConfig in alignment.html");
+    }
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const SIZE = 640, PAD = 56;
+    const scaleX = (x) => PAD + x * (SIZE - 2 * PAD);
+    const scaleY = (y) => PAD + y * (SIZE - 2 * PAD);
+    const invX = (px) => Math.min(1, Math.max(0, (px - PAD) / (SIZE - 2 * PAD)));
+    const invY = (py) => Math.min(1, Math.max(0, (py - PAD) / (SIZE - 2 * PAD)));
+
+    function alignmentLabel(x, y) {
+      const lc = x < 1/3 ? "Lawful" : x > 2/3 ? "Chaotic" : "Neutral";
+      const ge = y < 1/3 ? "Good" : y > 2/3 ? "Evil" : "Neutral";
+      if (lc === "Neutral" && ge === "Neutral") return "True Neutral";
+      if (lc === "Neutral") return ge;
+      if (ge === "Neutral") return lc;
+      return `${lc} ${ge}`;
+    }
+
+    function svgEl(tag, attrs) {
+      const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+      for (const k in attrs) el.setAttribute(k, attrs[k]);
+      return el;
+    }
+
+    function buildChartFrame() {
+      const svg = els.svg;
+      svg.innerHTML = "";
+
+      // Gridlines at thirds (recessive)
+      for (const f of [1/3, 2/3]) {
+        svg.appendChild(svgEl("line", { class: "gridline", x1: scaleX(f), y1: PAD, x2: scaleX(f), y2: SIZE - PAD }));
+        svg.appendChild(svgEl("line", { class: "gridline", x1: PAD, y1: scaleY(f), x2: SIZE - PAD, y2: scaleY(f) }));
+      }
+      // Center cross (heavier)
+      svg.appendChild(svgEl("line", { class: "baseline", x1: scaleX(0.5), y1: PAD, x2: scaleX(0.5), y2: SIZE - PAD }));
+      svg.appendChild(svgEl("line", { class: "baseline", x1: PAD, y1: scaleY(0.5), x2: SIZE - PAD, y2: scaleY(0.5) }));
+      // Frame
+      svg.appendChild(svgEl("rect", { x: PAD, y: PAD, width: SIZE - 2*PAD, height: SIZE - 2*PAD, fill: "none", stroke: "#c3c2b7", "stroke-width": 1 }));
+
+      // Corner labels
+      const corners = [
+        [0.02, 0.06, "Lawful Good", "start"],
+        [0.98, 0.06, "Chaotic Good", "end"],
+        [0.02, 0.955, "Lawful Evil", "start"],
+        [0.98, 0.955, "Chaotic Evil", "end"],
+      ];
+      for (const [fx, fy, text, anchor] of corners) {
+        const t = svgEl("text", { class: "corner-label", x: scaleX(fx), y: scaleY(fy), "text-anchor": anchor });
+        t.textContent = text;
+        svg.appendChild(t);
+      }
+
+      // Axis labels
+      const xLabel = svgEl("text", { class: "axis-label", x: SIZE/2, y: SIZE - 14, "text-anchor": "middle" });
+      xLabel.textContent = "Lawful ←   Lawful to Chaotic   → Chaotic";
+      svg.appendChild(xLabel);
+
+      const yLabel = svgEl("text", { class: "axis-label", x: 16, y: SIZE/2, "text-anchor": "middle", transform: `rotate(-90 16 ${SIZE/2})` });
+      yLabel.textContent = "Good ←   Good vs Evil   → Evil";
+      svg.appendChild(yLabel);
+
+      const topSub = svgEl("text", { class: "axis-sub", x: SIZE/2, y: PAD - 18, "text-anchor": "middle" });
+      topSub.textContent = "Good";
+      svg.appendChild(topSub);
+      const botSub = svgEl("text", { class: "axis-sub", x: SIZE/2, y: SIZE - PAD + 30, "text-anchor": "middle" });
+      botSub.textContent = "Evil";
+      svg.appendChild(botSub);
+
+      const pointsGroup = svgEl("g", { id: "points-group" });
+      svg.appendChild(pointsGroup);
+      return pointsGroup;
+    }
+
+    let pointsGroup = buildChartFrame();
+
+    // ── Tooltip ──────────────────────────────────────────────────────────
+    function showTooltip(evt, html) {
+      const rect = els.chartCard.getBoundingClientRect();
+      els.tooltip.innerHTML = html;
+      els.tooltip.style.left = (evt.clientX - rect.left + 14) + "px";
+      els.tooltip.style.top = (evt.clientY - rect.top + 14) + "px";
+      els.tooltip.style.display = "block";
+    }
+    function hideTooltip() { els.tooltip.style.display = "none"; }
+
+    // ── Auth + viewer profile ───────────────────────────────────────────
+    let currentUid = null;
+    let currentProfile = null; // {name, color}
+    let unsubViewer = null;
+    let unsubPoints = null;
+
+    function renderViewerBanner() {
+      if (!currentProfile) { els.viewerBanner.innerHTML = ""; return; }
+      els.viewerBanner.innerHTML = `
+        <span class="swatch-dot" style="background:${currentProfile.color}"></span>
+        Plotting as <strong>${escapeHtml(currentProfile.name)}</strong>
+        <span class="text-secondary">— click the chart to add a point</span>
+      `;
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+    }
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        signInAnonymously(auth).catch((e) => console.error("Anonymous sign-in failed", e));
+        return;
+      }
+      currentUid = user.uid;
+      watchViewerProfile(user.uid);
+      watchPoints();
+    });
+
+    function watchViewerProfile(uid) {
+      if (unsubViewer) unsubViewer();
+      const ref = doc(db, "viewers", uid);
+      unsubViewer = onSnapshot(ref, (snap) => {
+        if (snap.exists()) {
+          currentProfile = snap.data();
+          els.gateOverlay.style.display = "none";
+          els.svg.classList.remove("locked");
+        } else {
+          currentProfile = null;
+          els.gateOverlay.style.display = "flex";
+        }
+        renderViewerBanner();
+      }, (err) => console.error("viewer snapshot error", err));
+    }
+
+    // ── Gate UI ──────────────────────────────────────────────────────────
+    let selectedColor = null;
+    for (const c of PALETTE) {
+      const sw = document.createElement("span");
+      sw.className = "swatch";
+      sw.style.background = c.hex;
+      sw.title = c.name;
+      sw.addEventListener("click", () => {
+        selectedColor = c.hex;
+        [...els.gateSwatches.children].forEach(el => el.classList.remove("selected"));
+        sw.classList.add("selected");
+      });
+      els.gateSwatches.appendChild(sw);
+    }
+
+    els.gateSubmit.addEventListener("click", async () => {
+      const name = els.gateName.value.trim();
+      els.gateError.style.display = "none";
+      if (!name) { els.gateError.textContent = "Please enter a display name."; els.gateError.style.display = "block"; return; }
+      if (!selectedColor) { els.gateError.textContent = "Please pick a color."; els.gateError.style.display = "block"; return; }
+      if (!currentUid) { return; }
+      els.gateSubmit.disabled = true;
+      try {
+        await setDoc(doc(db, "viewers", currentUid), {
+          name, color: selectedColor, createdAt: serverTimestamp()
+        });
+      } catch (e) {
+        console.error(e);
+        els.gateError.textContent = "Could not save your profile. Please try again.";
+        els.gateError.style.display = "block";
+      } finally {
+        els.gateSubmit.disabled = false;
+      }
+    });
+
+    // ── Points: render + realtime sync ─────────────────────────────────
+    function watchPoints() {
+      if (unsubPoints) return;
+      const q = query(collection(db, "alignmentPoints"), orderBy("createdAt", "asc"));
+      unsubPoints = onSnapshot(q, (snap) => {
+        const docs = [];
+        snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+        renderPoints(docs);
+        renderLegend(docs);
+      }, (err) => console.error("points snapshot error", err));
+    }
+
+    function renderPoints(docs) {
+      pointsGroup.innerHTML = "";
+      for (const p of docs) {
+        const cx = scaleX(p.x), cy = scaleY(p.y);
+        const g = svgEl("g", { class: "point-group" });
+
+        const dot = svgEl("circle", { class: "point-dot", cx, cy, r: 6, fill: p.color });
+        g.appendChild(dot);
+
+        if (p.label) {
+          const t = svgEl("text", { class: "point-label", x: cx + 9, y: cy + 4 });
+          t.textContent = p.label;
+          g.appendChild(t);
+        }
+
+        g.addEventListener("mouseenter", (evt) => {
+          showTooltip(evt, `
+            <span class="swatch-dot" style="background:${p.color}"></span>
+            <strong>${escapeHtml(p.name)}</strong><br>
+            ${p.label ? escapeHtml(p.label) + "<br>" : ""}
+            <span style="opacity:.75">${alignmentLabel(p.x, p.y)}</span>
+          `);
+        });
+        g.addEventListener("mousemove", (evt) => showTooltip(evt, els.tooltip.innerHTML));
+        g.addEventListener("mouseleave", hideTooltip);
+
+        if (currentUid && p.ownerUid === currentUid) {
+          const del = svgEl("g", { class: "point-delete" });
+          const delCircle = svgEl("circle", { cx: cx + 10, cy: cy - 10, r: 7, fill: "#fff", stroke: "#c3c2b7" });
+          const delText = svgEl("text", { x: cx + 10, y: cy - 6, "text-anchor": "middle", "font-size": "10", fill: "#0b0b0b" });
+          delText.textContent = "×";
+          del.appendChild(delCircle);
+          del.appendChild(delText);
+          del.addEventListener("click", async (evt) => {
+            evt.stopPropagation();
+            if (confirm("Remove this point?")) {
+              try { await deleteDoc(doc(db, "alignmentPoints", p.id)); }
+              catch (e) { console.error(e); alert("Could not remove point."); }
+            }
+          });
+          g.appendChild(del);
+        }
+
+        pointsGroup.appendChild(g);
+      }
+    }
+
+    function renderLegend(docs) {
+      const seen = new Map();
+      for (const p of docs) if (!seen.has(p.name + p.color)) seen.set(p.name + p.color, p);
+      els.legend.innerHTML = "";
+      for (const p of seen.values()) {
+        const item = document.createElement("span");
+        item.className = "legend-item";
+        item.innerHTML = `<span class="swatch-dot" style="background:${p.color}"></span><span>${escapeHtml(p.name)}</span>`;
+        els.legend.appendChild(item);
+      }
+    }
+
+    // ── Add-point interaction ───────────────────────────────────────────
+    let pendingXY = null;
+
+    els.svg.addEventListener("click", (evt) => {
+      if (!currentProfile || !currentUid) return;
+      if (evt.target.closest(".point-group")) return; // clicked an existing point
+
+      const pt = els.svg.createSVGPoint();
+      pt.x = evt.clientX; pt.y = evt.clientY;
+      const ctm = els.svg.getScreenCTM().inverse();
+      const loc = pt.matrixTransform(ctm);
+      if (loc.x < PAD || loc.x > SIZE - PAD || loc.y < PAD || loc.y > SIZE - PAD) return;
+
+      pendingXY = { x: invX(loc.x), y: invY(loc.y) };
+
+      const rect = els.chartCard.getBoundingClientRect();
+      els.addForm.style.left = Math.min(evt.clientX - rect.left, rect.width - 230) + "px";
+      els.addForm.style.top = (evt.clientY - rect.top) + "px";
+      els.addForm.style.display = "block";
+      els.addInput.value = "";
+      els.addInput.focus();
+    });
+
+    function closeAddForm() {
+      els.addForm.style.display = "none";
+      pendingXY = null;
+    }
+
+    els.addCancel.addEventListener("click", closeAddForm);
+    els.addInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") els.addConfirm.click();
+      if (e.key === "Escape") closeAddForm();
+    });
+
+    els.addConfirm.addEventListener("click", async () => {
+      if (!pendingXY || !currentProfile || !currentUid) { closeAddForm(); return; }
+      const label = els.addInput.value.trim().slice(0, 80);
+      const { x, y } = pendingXY;
+      closeAddForm();
+      try {
+        await addDoc(collection(db, "alignmentPoints"), {
+          x, y, label,
+          name: currentProfile.name,
+          color: currentProfile.color,
+          ownerUid: currentUid,
+          createdAt: serverTimestamp()
+        });
+      } catch (e) {
+        console.error(e);
+        alert("Could not save your point.");
+      }
+    });
+  </script>
+</body>
+</html>

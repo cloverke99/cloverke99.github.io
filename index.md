@@ -41,6 +41,7 @@ permalink: /
           <li class="nav-item"><a class="nav-link" href="#publications">Publications</a></li>
           <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ '/blog/' | relative_url }}">Blog</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ '/alignment/' | relative_url }}">Alignment Chart</a></li>
         </ul>
       </div>
     </div>
