@@ -275,12 +275,10 @@ permalink: /alignment/
     const invX = (px) => Math.min(1, Math.max(0, (px - PAD) / (SIZE - 2 * PAD)));
     const invY = (py) => Math.min(1, Math.max(0, (py - PAD) / (SIZE - 2 * PAD)));
 
-    // Stored point data keeps its original meaning forever: y=0 is Good, y=1
-    // is Evil. Only the *screen* orientation is flipped (Evil on top, Good on
-    // bottom), so existing Firestore documents never need to change — only
-    // where we draw them.
-    const dataYToScreen = (y) => scaleY(1 - y);
-    const screenToDataY = (py) => 1 - invY(py);
+    // Stored point data means y=0 is Good, y=1 is Evil. Screen orientation
+    // matches that directly (Good on top, Evil on bottom).
+    const dataYToScreen = (y) => scaleY(y);
+    const screenToDataY = (py) => invY(py);
 
     function alignmentLabel(x, y) {
       const lc = x < 1/3 ? "Lawful" : x > 2/3 ? "Chaotic" : "Neutral";
@@ -312,12 +310,12 @@ permalink: /alignment/
       // Frame
       svg.appendChild(svgEl("rect", { x: PAD, y: PAD, width: SIZE - 2*PAD, height: SIZE - 2*PAD, fill: "none", stroke: "#c3c2b7", "stroke-width": 1 }));
 
-      // Corner labels (Evil on top, Good on bottom)
+      // Corner labels (Good on top, Evil on bottom)
       const corners = [
-        [0.02, 0.06, "Lawful Evil", "start"],
-        [0.98, 0.06, "Chaotic Evil", "end"],
-        [0.02, 0.955, "Lawful Good", "start"],
-        [0.98, 0.955, "Chaotic Good", "end"],
+        [0.02, 0.06, "Lawful Good", "start"],
+        [0.98, 0.06, "Chaotic Good", "end"],
+        [0.02, 0.955, "Lawful Evil", "start"],
+        [0.98, 0.955, "Chaotic Evil", "end"],
       ];
       for (const [fx, fy, text, anchor] of corners) {
         const t = svgEl("text", { class: "corner-label", x: scaleX(fx), y: scaleY(fy), "text-anchor": anchor });
@@ -331,14 +329,14 @@ permalink: /alignment/
       svg.appendChild(xLabel);
 
       const yLabel = svgEl("text", { class: "axis-label", x: 16, y: SIZE/2, "text-anchor": "middle", transform: `rotate(-90 16 ${SIZE/2})` });
-      yLabel.textContent = "Evil ←   Good vs Evil   → Good";
+      yLabel.textContent = "Good ←   Good vs Evil   → Evil";
       svg.appendChild(yLabel);
 
       const topSub = svgEl("text", { class: "axis-sub", x: SIZE/2, y: PAD - 18, "text-anchor": "middle" });
-      topSub.textContent = "Evil";
+      topSub.textContent = "Good";
       svg.appendChild(topSub);
       const botSub = svgEl("text", { class: "axis-sub", x: SIZE/2, y: SIZE - PAD + 30, "text-anchor": "middle" });
-      botSub.textContent = "Good";
+      botSub.textContent = "Evil";
       svg.appendChild(botSub);
 
       const pointsGroup = svgEl("g", { id: "points-group" });
